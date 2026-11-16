@@ -1,0 +1,15 @@
+# Cached HTML: never commit
+cache/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Env / editor
+.env
+.vscode/
+.idea/
+.DS_Store
