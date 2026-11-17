@@ -1,17 +1,51 @@
 """Stage 1 (and reused in 2, 3, 5): polite fetching with a local HTML cache."""
 
+import time
 from pathlib import Path
+
+import requests
+
+import config
+
+_session = requests.Session()
+_session.headers["User-Agent"] = config.USER_AGENT
+_last_request_at = 0.0
+
+# Counters read by the run report.
+stats = {"pages_fetched": 0, "cache_hits": 0}
+
+
+class FetchError(Exception):
+    """A page could not be fetched: anything other than a 200 is a failed fetch."""
+
+
+def _wait_politely() -> None:
+    """Keep at least DELAY_SECONDS between real requests to the site."""
+    global _last_request_at
+    wait = config.DELAY_SECONDS - (time.monotonic() - _last_request_at)
+    if wait > 0:
+        time.sleep(wait)
+    _last_request_at = time.monotonic()
 
 
 def fetch_html(url: str, cache_path: Path) -> str:
-    """Return the HTML for `url`, reading from `cache_path` if it exists.
+    """Return the HTML for `url`, reading from `cache_path` if it exists."""
+    if cache_path.exists():
+        html = cache_path.read_text(encoding="utf-8")
+        stats["cache_hits"] += 1
+        print(f"CACHE HIT {url} ({len(html):,} chars)")
+        return html
 
-    On a real request:
-      - send the identifying USER_AGENT from config
-      - use TIMEOUT_SECONDS
-      - only accept status 200; anything else is a failed fetch
-      - wait DELAY_SECONDS between real requests
-      - save the body to `cache_path`
-    Print FETCH or CACHE HIT plus the response size (never the HTML itself).
-    """
-    raise NotImplementedError("Stage 1")
+    _wait_politely()
+    response = _session.get(url, timeout=config.TIMEOUT_SECONDS)
+    if response.status_code != 200:
+        raise FetchError(f"HTTP {response.status_code} for {url}")
+
+    # The site serves UTF-8 but omits the charset header, so requests would guess Latin-1.
+    response.encoding = "utf-8"
+    html = response.text
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(html, encoding="utf-8")
+    stats["pages_fetched"] += 1
+    print(f"FETCH {response.status_code} {url} ({len(response.content):,} bytes)")
+    return html
