@@ -1,19 +1,14 @@
 {
-  "started_at": "2026-11-17T02:43:05Z",
-  "finished_at": "2026-11-17T02:43:09Z",
-  "duration_seconds": 4.22,
+  "started_at": "2026-11-17T02:46:04Z",
+  "finished_at": "2026-11-17T02:46:07Z",
+  "duration_seconds": 2.76,
   "catalogue_pages": 3,
-  "book_urls": 61,
-  "requests_sent": 1,
+  "book_urls": 60,
+  "requests_sent": 0,
   "pages_fetched": 0,
   "cache_hits": 63,
   "valid_records": 60,
   "invalid_records": 0,
-  "failed_pages": 1,
-  "failures": [
-    {
-      "url": "https://books.toscrape.com/catalogue/this-book-does-not-exist_0/index.html",
-      "error": "HTTP 404 for https://books.toscrape.com/catalogue/this-book-does-not-exist_0/index.html"
-    }
-  ]
+  "failed_pages": 0,
+  "failures": []
 }
