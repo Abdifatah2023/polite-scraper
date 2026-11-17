@@ -38,4 +38,3 @@ Modules import each other as flat top-level modules (`import config`, `from repo
 - **Retries:** retry once on a timeout or 5xx. Never retry on 404 or 403.
 - **Cache:** `cache/` is gitignored and must never be committed. The site should only be hit once per page across runs.
 - **No browser automation:** the data is already in the server-rendered HTML, so use requests + Beautiful Soup only.
-- **Placeholder:** `USER_AGENT` in `config.py` still contains a `<your-username>` placeholder for the repo URL.
