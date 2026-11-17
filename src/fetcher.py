@@ -1,5 +1,6 @@
 """Stage 1 (and reused in 2, 3, 5): polite fetching with a local HTML cache."""
 
+import hashlib
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -7,6 +8,8 @@ from urllib.parse import urlparse
 import requests
 
 import config
+
+MAX_CACHE_NAME = 80  # characters, before ".html"
 
 _session = requests.Session()
 _session.headers["User-Agent"] = config.USER_AGENT
@@ -58,12 +61,16 @@ def cache_path_for(url: str) -> Path:
     """Map a site URL to a flat cache file, e.g.
     .../catalogue/page-2.html           -> cache/catalogue-page-2.html
     .../catalogue/some-book_123/index.html -> cache/catalogue-some-book_123.html
+
+    Long book slugs are cut and given a short hash of the URL, so the full path stays
+    under Windows' 260-character limit even when the repo is cloned somewhere deep.
     """
     path = urlparse(url).path.strip("/").removesuffix("index.html").strip("/")
-    name = path.replace("/", "-")
-    if not name.endswith(".html"):
-        name += ".html"
-    return config.CACHE_DIR / name
+    name = path.replace("/", "-").removesuffix(".html")
+    if len(name) > MAX_CACHE_NAME:
+        digest = hashlib.sha1(url.encode("utf-8")).hexdigest()[:10]
+        name = f"{name[:MAX_CACHE_NAME - 11]}-{digest}"
+    return config.CACHE_DIR / f"{name}.html"
 
 
 def fetch_html(url: str, cache_path: Path) -> str:
@@ -79,8 +86,12 @@ def fetch_html(url: str, cache_path: Path) -> str:
     # The site serves UTF-8 but omits the charset header, so requests would guess Latin-1.
     response.encoding = "utf-8"
     html = response.text
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    cache_path.write_text(html, encoding="utf-8")
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(html, encoding="utf-8")
+    except OSError as exc:
+        # The page arrived fine; a full disk or a too-long path should not throw it away.
+        print(f"WARN could not cache {url}: {exc}")
     stats["pages_fetched"] += 1
     print(f"FETCH {response.status_code} {url} ({len(response.content):,} bytes)")
     return html

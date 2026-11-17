@@ -37,7 +37,10 @@ def _reasons(exc: ValidationError) -> list[str]:
 
 
 def fetched_at(cache_path: Path) -> str:
-    """When the page really came from the site: the cache file's write time, not "now"."""
+    """When the page really came from the site: the cache file's write time, not "now".
+    If the page could not be cached it was just fetched, so "now" is the honest answer."""
+    if not cache_path.exists():
+        return _utc_now()
     written = datetime.fromtimestamp(cache_path.stat().st_mtime, timezone.utc)
     return written.isoformat(timespec="seconds").replace("+00:00", "Z")
 
