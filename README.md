@@ -157,8 +157,20 @@ dependency.
 
 ## Ethics note
 
-TODO (write this in your own words, as the assignment asks). Cover: use an official API when
-one exists; never bypass logins, paywalls, or blocks; collect only what you need.
+Before I scrape a site, I check whether it has an official API. If it does, I use the API. It's
+how the owner chose to share their data, and it breaks less often than parsing HTML. Books to
+Scrape has no API, and the whole site exists so people can practise scraping, so scraping it
+was fine here.
+
+I don't scrape anything behind a login, a paywall, or a block. If a site asks me to sign in,
+charges for access, or answers with a 403, the site is telling me no. That's why my scraper
+never retries a 403. The quotes site on toscrape.com has a login page, but this project didn't
+need it, so I didn't touch it.
+
+I only collect what I need. The scraper reads 3 catalogue pages and 60 books, and takes 8 fields
+from each book. It doesn't download the cover images or crawl the other 940 books. Because of
+the cache, the site served almost every page only once, even though I ran the script many times
+while building it.
 
 ## Limitations
 
