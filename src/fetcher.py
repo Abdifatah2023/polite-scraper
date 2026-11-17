@@ -2,6 +2,7 @@
 
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 
@@ -26,6 +27,18 @@ def _wait_politely() -> None:
     if wait > 0:
         time.sleep(wait)
     _last_request_at = time.monotonic()
+
+
+def cache_path_for(url: str) -> Path:
+    """Map a site URL to a flat cache file, e.g.
+    .../catalogue/page-2.html           -> cache/catalogue-page-2.html
+    .../catalogue/some-book_123/index.html -> cache/catalogue-some-book_123.html
+    """
+    path = urlparse(url).path.strip("/").removesuffix("index.html").strip("/")
+    name = path.replace("/", "-")
+    if not name.endswith(".html"):
+        name += ".html"
+    return config.CACHE_DIR / name
 
 
 def fetch_html(url: str, cache_path: Path) -> str:
