@@ -13,7 +13,7 @@ _session.headers["User-Agent"] = config.USER_AGENT
 _last_request_at = 0.0
 
 # Counters read by the run report.
-stats = {"pages_fetched": 0, "cache_hits": 0}
+stats = {"requests_sent": 0, "pages_fetched": 0, "cache_hits": 0}
 
 
 class FetchError(Exception):
@@ -27,6 +27,31 @@ def _wait_politely() -> None:
     if wait > 0:
         time.sleep(wait)
     _last_request_at = time.monotonic()
+
+
+def _get_with_one_retry(url: str) -> requests.Response:
+    """GET with a single retry on a timeout, connection error, or 5xx.
+
+    A 4xx is final: a 404 will not appear on a second ask, and retrying a 403
+    is how a polite robot becomes a pest.
+    """
+    for attempt in (1, 2):
+        _wait_politely()
+        stats["requests_sent"] += 1
+        try:
+            response = _session.get(url, timeout=config.TIMEOUT_SECONDS)
+        except (requests.Timeout, requests.ConnectionError) as exc:
+            if attempt == 2:
+                raise FetchError(f"{type(exc).__name__} for {url}") from exc
+            print(f"RETRY {url} after {type(exc).__name__}")
+        else:
+            if response.status_code == 200:
+                return response
+            if response.status_code < 500 or attempt == 2:
+                raise FetchError(f"HTTP {response.status_code} for {url}")
+            print(f"RETRY {url} after HTTP {response.status_code}")
+        time.sleep(config.RETRY_WAIT_SECONDS)
+    raise AssertionError("unreachable")
 
 
 def cache_path_for(url: str) -> Path:
@@ -49,10 +74,7 @@ def fetch_html(url: str, cache_path: Path) -> str:
         print(f"CACHE HIT {url} ({len(html):,} chars)")
         return html
 
-    _wait_politely()
-    response = _session.get(url, timeout=config.TIMEOUT_SECONDS)
-    if response.status_code != 200:
-        raise FetchError(f"HTTP {response.status_code} for {url}")
+    response = _get_with_one_retry(url)
 
     # The site serves UTF-8 but omits the charset header, so requests would guess Latin-1.
     response.encoding = "utf-8"
