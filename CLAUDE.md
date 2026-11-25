@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-FlyRank internship assignment A9, "The polite scraper". It scrapes the first 3 catalogue pages (60 books) of https://books.toscrape.com, a public sandbox built for scraping practice, and turns them into schema-validated JSON. Stages 0–6 are implemented, one commit per stage. The README is part of the deliverable. The ethics note must be written in the student's own words, so don't fill it in with invented content.
+FlyRank internship assignment A9, "The polite scraper". It scrapes the first 3 catalogue pages (60 books) of https://books.toscrape.com, a public sandbox built for scraping practice, and turns them into schema-validated JSON. Stages 0–6 are implemented, one commit per stage. The README is part of the deliverable: its stage table, schema table and sample run report should stay in sync with the code. The README's "Ethics note" is written in the student's own words, so don't rewrite, expand or "polish" it.
 
 ## Commands
 
@@ -23,12 +23,14 @@ There are no tests, linter, or build step yet.
 Pipeline: `fetch → extract → normalize → validate → store → report`, driven by `src/main.py`. Each module maps to a stage, and its docstring holds the contract for that stage. Read the docstring before you implement a module.
 
 - `config.py`: the single source for the target URLs, politeness settings (`USER_AGENT`, `TIMEOUT_SECONDS=10`, `DELAY_SECONDS=0.5`), and all paths. Paths are anchored to the repo root via `ROOT_DIR`, so the script works from any cwd.
-- `fetcher.fetch_html(url, cache_path)` (Stages 1, 2, 3 and 5): cache-first. On a real request it sends the identifying UA, accepts only HTTP 200, sleeps between real requests (cache hits skip the delay), and writes the body to `cache/`. It logs `FETCH` / `CACHE HIT` plus the response size, never the HTML itself.
+- `fetcher.fetch_html(url, cache_path)` (Stages 1, 2, 3 and 5): cache-first. On a real request it sends the identifying UA, accepts only HTTP 200, sleeps between real requests (cache hits skip the delay), and writes the body to `cache/`. It logs `FETCH` / `CACHE HIT` plus the response size, never the HTML itself. Anything that isn't a 200 raises `FetchError`. It forces `response.encoding = "utf-8"` because the site omits the charset header. A failed cache write only warns, so the fetched page is still used. Module-level `fetcher.stats` counters feed the run report.
+- `fetcher.cache_path_for(url)`: maps a URL to a flat file name (`catalogue/page-2.html` → `cache/catalogue-page-2.html`). Long slugs are truncated and given a short SHA-1 suffix to stay under the Windows 260-char path limit. Always build cache paths through this function. Changing its naming invalidates the existing cache and causes a full re-scrape.
 - `discover.discover_book_urls(start_url, max_pages)` (Stage 2): follows the page's own "next" link, resolves links with `urljoin` (never string concatenation), and de-dups while preserving order. Returns `(book_url -> source_page dict, pages_visited, links_discovered)`.
 - `extract.extract_raw_record(...)` (Stage 3): returns exactly 8 keys of raw strings plus provenance. `description` is `None` when it's missing and must never be invented. Selectors target the product area, not the whole document.
 - `normalize.py` (Stage 4): adds clean fields such as `price_gbp` *next to* the raw `*_text` fields. It never replaces them.
 - `schema.Book` (Stage 4): a Pydantic model that every record is validated against before it is stored. `extra="forbid"`, https-only URLs, positive price, ratings 1–5, timezone-aware `fetched_at`. `product_url` is the record's identity. `normalize_record` never raises; unparseable values become `None` so the schema rejects them into `errors.json`.
-- `report.RunReport` (Stage 5): a dataclass of run counters that is serialized to `output/run-report.json`.
+- `report.RunReport` (Stage 5): a dataclass of run counters that is serialized to `output/run-report.json`. `main.py` writes it in a `finally` block, so a report is produced even when the run aborts.
+- `main.run` catches `FetchError`/`ExtractError` per book page. `fetched_at` is the cache file's mtime (when the page really came from the site), not the current time. The `--inject-broken-url` drill adds `config.BROKEN_BOOK_URL`, which 404s.
 
 Modules import each other as flat top-level modules (`import config`, `from report import RunReport`). This works because the entry point is `python src/main.py`, which puts `src/` on `sys.path`. Don't convert them to package-relative imports unless you also change how the pipeline is invoked.
 
@@ -36,6 +38,7 @@ Modules import each other as flat top-level modules (`import config`, `from repo
 
 - **Outputs:** `output/books.json` must hold exactly 60 valid records, including after a rerun, so runs must be idempotent and must not append duplicates. Records that fail validation go to `output/errors.json` with the reason.
 - **Failure isolation (Stage 5):** one broken page must not crash the run. Catch the failure for that page, record it in `RunReport.failures`, and continue.
-- **Retries:** retry once on a timeout or 5xx. Never retry on 404 or 403.
+- **Retries:** retry once on a timeout, connection error or 5xx (after `RETRY_WAIT_SECONDS`). Never retry any 4xx, especially 404 or 403.
+- **Committed outputs:** `output/*.json` are tracked as Stage 6 evidence. Each run rewrites `run-report.json` with new timestamps, so don't commit that churn unless the evidence is meant to be updated.
 - **Cache:** `cache/` is gitignored and must never be committed. The site should only be hit once per page across runs.
 - **No browser automation:** the data is already in the server-rendered HTML, so use requests + Beautiful Soup only.
