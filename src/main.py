@@ -16,6 +16,7 @@ from pydantic import ValidationError
 import config
 import fetcher
 from changes import diff, load_previous
+from dashboard import write_dashboard
 from discover import discover_book_urls
 from export import write_csv
 from extract import ExtractError, extract_raw_record
@@ -47,7 +48,9 @@ def fetched_at(cache_path: Path) -> str:
     return written.isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-def run(report: RunReport, inject_broken_url: bool) -> None:
+def run(report: RunReport, inject_broken_url: bool, results: dict) -> None:
+    """Run the pipeline. `results` receives the stored books and errors for the dashboard;
+    it stays empty if the run aborts before storing anything."""
     # Stages 1-2: fetch (cache-first) the catalogue pages and discover the book URLs
     books, pages, discovered = discover_book_urls(config.START_URL, config.MAX_CATALOGUE_PAGES)
     report.catalogue_pages = pages
@@ -83,16 +86,17 @@ def run(report: RunReport, inject_broken_url: bool) -> None:
             continue
         valid[book.product_url] = book.model_dump(mode="json")
 
-    # Overwrite (never append) so a rerun yields the same records, not double
     # Compare with what the last run stored, before overwriting it
     report.changes = diff(load_previous(config.BOOKS_FILE), list(valid.values()))
     c = report.changes
     print(f"changes: new={c['new']} changed={c['changed']} "
           f"unchanged={c['unchanged']} gone={c['gone']}")
 
+    # Overwrite (never append) so a rerun yields the same records, not double
     write_json(config.BOOKS_FILE, list(valid.values()))
     write_csv(list(valid.values()), config.BOOKS_CSV_FILE)
     write_json(config.ERRORS_FILE, errors)
+    results["books"], results["errors"] = list(valid.values()), errors
     report.valid_records = len(valid)
     report.invalid_records = len(errors)
     print(f"valid_records={len(valid)} invalid_records={len(errors)}")
@@ -108,8 +112,9 @@ def main() -> None:
     config.OUTPUT_DIR.mkdir(exist_ok=True)
     report = RunReport(started_at=_utc_now())
     started = time.monotonic()
+    results: dict = {"books": [], "errors": []}
     try:
-        run(report, args.inject_broken_url)
+        run(report, args.inject_broken_url, results)
     except Exception as exc:
         report.failures.append({"url": None, "error": f"run aborted: {exc!r}"})
         raise
@@ -124,6 +129,10 @@ def main() -> None:
         write_json(config.REPORT_FILE, asdict(report))
         print(f"report: {config.REPORT_FILE.relative_to(config.ROOT_DIR)} "
               f"failed_pages={report.failed_pages} duration={report.duration_seconds}s")
+        try:
+            write_dashboard(config.DASHBOARD_FILE, asdict(report), results["books"], results["errors"])
+        except Exception as exc:  # a broken dashboard must not hide the run's real outcome
+            print(f"WARN could not write dashboard: {exc!r}")
 
 
 if __name__ == "__main__":

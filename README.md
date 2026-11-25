@@ -69,6 +69,7 @@ Outputs:
 - `output/books.json`: validated records (exactly 60, also after a rerun)
 - `output/books.csv`: the same 60 validated records as a spreadsheet (see [CSV export](#csv-export))
 - `output/errors.json`: records that failed validation, with the reasons (empty on a clean run)
+- `output/dashboard.html`: a one-page summary of the run (see [Dashboard](#dashboard))
 - `output/run-report.json`: counts, cache hits, failures, and duration
 
 Failure drill (Stage 5): `python src/main.py --inject-broken-url` adds one made-up book URL. The
@@ -183,6 +184,25 @@ A real `output/run-report.json` from the Stage 5 failure drill (warm cache, one 
 
 The only real request in that run was the made-up URL. It got a 404, was not retried, and the
 other 60 books still came out valid.
+
+## Dashboard
+
+Every run ends by writing `output/dashboard.html`. Open it in any browser: it needs no server and
+no internet. It shows:
+
+- whether the run was clean, with an icon and a sentence (not just a color)
+- valid records out of the book URLs tried, plus invalid records, failed pages, real requests
+  vs. cache hits, and how long the run took
+- the price range: cheapest, median, most expensive
+- the change counts from [Changed since last run](#changed-since-last-run)
+- how fresh the data is: the oldest and newest `fetched_at`, as an age. Because the cache never
+  expires, the oldest one is how stale the data can be.
+- tables of failed pages, invalid records, and changed records
+
+The numbers are written into the HTML when it is generated, instead of being loaded by
+JavaScript, because browsers block a page opened from disk from loading files next to it. All
+scraped text is HTML-escaped, since a page is untrusted input. The dashboard is written even
+when a run crashes, and it follows the system's light or dark mode.
 
 ## Changed since last run
 

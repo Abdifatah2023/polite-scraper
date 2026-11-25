@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Polite scraper: run dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f6f6f4; --surface-1: #ffffff; --border: #e2e2de;
+    --text-primary: #191919; --text-secondary: #666666;
+    --good: #0aac23; --critical: #dc3c3d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface-0: #111111; --surface-1: #191919; --border: #2e2e2e;
+      --text-primary: #efefef; --text-secondary: #9c9c9c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--surface-0); color: var(--text-primary);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 32px 20px 48px; }
+  header p { margin: 4px 0 0; color: var(--text-secondary); }
+  h1 { font-size: 22px; margin: 0; }
+  h2 { font-size: 15px; margin: 32px 0 10px; }
+  .status { display: inline-flex; gap: 8px; align-items: center; margin-top: 16px;
+            padding: 6px 12px; border-radius: 999px; background: var(--surface-1);
+            border: 1px solid var(--border); font-weight: 600; }
+  .status .icon { display: inline-grid; place-items: center; width: 20px; height: 20px;
+                  border-radius: 50%; color: #fff; font-size: 12px; }
+  .status.good .icon { background: var(--good); }
+  .status.critical .icon { background: var(--critical); }
+  .hero { margin-top: 24px; padding: 20px 24px; background: var(--surface-1);
+          border: 1px solid var(--border); border-radius: 12px; }
+  .hero .value { font-size: 56px; font-weight: 600; line-height: 1.1; margin: 4px 0 0; }
+  .hero .value span { font-size: 22px; color: var(--text-secondary); font-weight: 400; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+          padding: 14px 16px; }
+  .label, .note { margin: 0; color: var(--text-secondary); font-size: 13px; font-weight: 400; }
+  .tile .value { margin: 2px 0; font-size: 26px; font-weight: 600; }
+  .scroll { overflow-x: auto; background: var(--surface-1); border: 1px solid var(--border);
+            border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border);
+           vertical-align: top; word-break: break-all; }
+  th { color: var(--text-secondary); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  .empty { margin: 0; color: var(--text-secondary); }
+  footer { margin-top: 40px; color: var(--text-secondary); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Polite scraper: run dashboard</h1>
+    <p>books.toscrape.com, first 3 catalogue pages ·
+       run finished 2026-11-25T05:31:27Z</p>
+    <div class="status good" role="status">
+      <span class="icon" aria-hidden="true">✓</span>Clean run: every page fetched and every record valid
+    </div>
+  </header>
+
+  <div class="hero">
+    <p class="label">Valid records in books.json</p>
+    <p class="value">60 <span>of 60 book URLs</span></p>
+  </div>
+
+  <h2>This run</h2>
+  <div class="grid"><div class="tile"><p class="label">Invalid records</p><p class="value">0</p><p class="note">sent to errors.json</p></div><div class="tile"><p class="label">Failed pages</p><p class="value">0</p><p class="note">logged and skipped</p></div><div class="tile"><p class="label">Requests to the site</p><p class="value">0</p><p class="note">63 pages read from cache</p></div><div class="tile"><p class="label">Run duration</p><p class="value">3.44 s</p><p class="note">3 catalogue pages</p></div></div>
+
+  <h2>Price range (60 books)</h2>
+  <div class="grid"><div class="tile"><p class="label">Cheapest</p><p class="value">£12.84</p></div><div class="tile"><p class="label">Median</p><p class="value">£33.48</p></div><div class="tile"><p class="label">Most expensive</p><p class="value">£57.31</p></div></div>
+
+  <h2>Changed since last run <span class="note">(vs. 60 records last run)</span></h2>
+  <div class="grid"><div class="tile"><p class="label">New</p><p class="value">0</p></div><div class="tile"><p class="label">Changed</p><p class="value">0</p></div><div class="tile"><p class="label">Unchanged</p><p class="value">60</p></div><div class="tile"><p class="label">Gone</p><p class="value">0</p></div></div>
+
+  <h2>Data freshness</h2>
+  <div class="grid"><div class="tile"><p class="label">Oldest data</p><p class="value">8 days old</p><p class="note">fetched 2026-11-17 02:39 UTC</p></div><div class="tile"><p class="label">Newest data</p><p class="value">8 days old</p><p class="note">fetched 2026-11-17 02:40 UTC</p></div></div>
+  <p class="note" style="margin-top:8px">The cache never expires, so the oldest fetch time is
+     how stale this data can be. Delete <code>cache/</code> to refresh it.</p>
+
+  <section><h2>Failed pages</h2><p class="empty">No failed pages.</p></section>
+  <section><h2>Invalid records</h2><p class="empty">No invalid records.</p></section>
+  <section><h2>Changed records</h2><p class="empty">No changed records.</p></section>
+
+  <footer>Generated by src/dashboard.py from this run's report and records.</footer>
+</main>
+</body>
+</html>
