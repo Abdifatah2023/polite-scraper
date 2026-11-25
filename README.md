@@ -153,9 +153,9 @@ A real `output/run-report.json` from the Stage 5 failure drill (warm cache, one 
 
 ```json
 {
-  "started_at": "2026-11-17T02:43:05Z",
-  "finished_at": "2026-11-17T02:43:09Z",
-  "duration_seconds": 4.22,
+  "started_at": "2026-11-25T05:22:24Z",
+  "finished_at": "2026-11-25T05:22:26Z",
+  "duration_seconds": 1.94,
   "catalogue_pages": 3,
   "book_urls": 61,
   "requests_sent": 1,
@@ -164,6 +164,14 @@ A real `output/run-report.json` from the Stage 5 failure drill (warm cache, one 
   "valid_records": 60,
   "invalid_records": 0,
   "failed_pages": 1,
+  "changes": {
+    "previous_records": 60,
+    "new": 0,
+    "changed": 0,
+    "unchanged": 60,
+    "gone": 0,
+    "changed_urls": []
+  },
   "failures": [
     {
       "url": "https://books.toscrape.com/catalogue/this-book-does-not-exist_0/index.html",
@@ -175,6 +183,36 @@ A real `output/run-report.json` from the Stage 5 failure drill (warm cache, one 
 
 The only real request in that run was the made-up URL. It got a 404, was not retried, and the
 other 60 books still came out valid.
+
+## Changed since last run
+
+Every run compares its valid records with the `books.json` the previous run left behind,
+before overwriting it, and puts the counts in the run report under `changes`. Records are
+matched by `product_url`. Each one is hashed (SHA-256) without its provenance fields
+(`source_page`, `fetched_at`), so only a change in the scraped content counts as a change.
+
+| Bucket | Meaning |
+|--------|---------|
+| `new` | in this run, not in the last one (all 60 on a first run) |
+| `changed` | in both, but the content differs (`changed_urls` lists which) |
+| `unchanged` | in both, same content |
+| `gone` | in the last run, not in this one |
+
+Two honest caveats:
+
+- The cache never expires, so a normal rerun always reports `unchanged: 60`. Real changes only
+  show up after `cache/` is deleted and the pages are fetched again.
+- `gone` means "not in this run's `books.json`", not "removed from the site". A page that fails
+  this run (a timeout, or a changed layout) also counts as gone, so check `failures` next to it.
+
+I tested all four buckets without touching the site, by editing my own cached pages:
+
+| What I did | Result |
+|------------|--------|
+| Rerun as normal | `unchanged=60` |
+| Moved `books.json` away first | `new=60` |
+| Changed one cached price from £51.77 to £52.00 | `changed=1 unchanged=59` |
+| Broke one cached page's product area | `gone=1`, plus `failed_pages=1` |
 
 ## Why no browser
 

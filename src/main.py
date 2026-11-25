@@ -15,6 +15,7 @@ from pydantic import ValidationError
 
 import config
 import fetcher
+from changes import diff, load_previous
 from discover import discover_book_urls
 from export import write_csv
 from extract import ExtractError, extract_raw_record
@@ -83,6 +84,12 @@ def run(report: RunReport, inject_broken_url: bool) -> None:
         valid[book.product_url] = book.model_dump(mode="json")
 
     # Overwrite (never append) so a rerun yields the same records, not double
+    # Compare with what the last run stored, before overwriting it
+    report.changes = diff(load_previous(config.BOOKS_FILE), list(valid.values()))
+    c = report.changes
+    print(f"changes: new={c['new']} changed={c['changed']} "
+          f"unchanged={c['unchanged']} gone={c['gone']}")
+
     write_json(config.BOOKS_FILE, list(valid.values()))
     write_csv(list(valid.values()), config.BOOKS_CSV_FILE)
     write_json(config.ERRORS_FILE, errors)

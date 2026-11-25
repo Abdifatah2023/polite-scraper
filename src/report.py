@@ -16,4 +16,5 @@ class RunReport:
     valid_records: int = 0
     invalid_records: int = 0
     failed_pages: int = 0
+    changes: dict = field(default_factory=dict)  # new / changed / unchanged / gone vs. last run
     failures: list[dict] = field(default_factory=list)  # {"url", "error"}
