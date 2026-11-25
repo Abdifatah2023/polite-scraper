@@ -76,6 +76,18 @@ run still finishes, `books.json` keeps its 60 records, and the report shows `fai
 To fetch everything fresh, delete the `cache/` folder. Do this rarely: the cache is what keeps
 the scraper polite.
 
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+The tests run offline. Two small saved pages in `tests/fixtures/` show that the parser stores
+`null` for a missing description, collapses extra whitespace, and reads the price from the
+product area even when the page has other prices. Other tests cover price normalization,
+relative → absolute URLs, duplicate links, and a malformed page.
+
 ## How it works
 
 | Stage | Module | What it does |

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<!-- Fixture: a trimmed book page with extra whitespace (newlines, tabs, padding) inside
+     every field, plus a SECOND price in the product-information table. The parser must
+     collapse the whitespace and read the price from the product area, not the table. -->
+<html lang="en-us">
+<head><meta charset="utf-8"><title>Fixture book | Books to Scrape - Sandbox</title></head>
+<body>
+<p class="price_color">£999.99</p>
+<article class="product_page">
+    <div class="row">
+        <div class="col-sm-6 product_main">
+            <h1>
+		  A   Light
+	in the     Attic
+            </h1>
+            <p class="price_color">
+                £51.77
+            </p>
+            <p class="instock availability">
+                <i class="icon-ok"></i>
+
+                    In   stock
+                    (22 available)
+
+            </p>
+            <p class="star-rating Three">
+                <i class="icon-star"></i>
+            </p>
+        </div>
+    </div>
+    <div id="product_description" class="sub-header">
+        <h2>Product Description</h2>
+    </div>
+    <p>
+        It's hard to imagine    a world
+	without A Light in the Attic.
+    </p>
+    <table class="table table-striped">
+        <tr><th>Price (excl. tax)</th><td>£40.00</td></tr>
+    </table>
+</article>
+</body>
+</html>

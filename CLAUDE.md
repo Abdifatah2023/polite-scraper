@@ -16,7 +16,13 @@ python src/main.py               # run the full pipeline
 python src/main.py --inject-broken-url   # Stage 5 failure drill (one made-up book URL)
 ```
 
-There are no tests, linter, or build step yet.
+```bash
+pip install -r requirements-dev.txt                      # adds pytest
+python -m pytest                                         # all tests, offline
+python -m pytest tests/test_extract.py::test_extra_whitespace_is_collapsed   # one test
+```
+
+Tests never touch the network. Parser tests use saved HTML in `tests/fixtures/`, and discovery tests monkeypatch `discover.fetch_html`. `pytest.ini` sets `pythonpath = src` so the flat imports work. There is no linter or build step. The optional extras are planned in `docs/make-it-yours-plan.md`.
 
 ## Architecture
 
