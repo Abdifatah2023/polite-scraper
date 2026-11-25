@@ -1,7 +1,12 @@
 """Stage 1 (and reused in 2, 3, 5): polite fetching with a local HTML cache."""
 
 import hashlib
+import json
+import logging
+import random
 import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -10,6 +15,30 @@ import requests
 import config
 
 MAX_CACHE_NAME = 80  # characters, before ".html"
+
+# Structured log: one record per real request attempt, with named fields.
+# main.py points it at output/fetch-log.jsonl; without a handler it stays silent.
+log = logging.getLogger("fetcher")
+log.setLevel(logging.INFO)
+log.propagate = False
+
+
+class JsonLineFormatter(logging.Formatter):
+    """Write a log record as one JSON object per line: a timestamp plus its named fields."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        ts = datetime.fromtimestamp(record.created, timezone.utc)
+        line = {"ts": ts.isoformat(timespec="milliseconds").replace("+00:00", "Z")}
+        line.update(getattr(record, "fields", {}))
+        return json.dumps(line, ensure_ascii=False)
+
+
+def configure_fetch_log(path: Path) -> logging.Handler:
+    """Send the fetch log to `path`, overwritten each run like the other outputs."""
+    handler = logging.FileHandler(path, mode="w", encoding="utf-8")
+    handler.setFormatter(JsonLineFormatter())
+    log.addHandler(handler)
+    return handler
 
 _session = requests.Session()
 _session.headers["User-Agent"] = config.USER_AGENT
@@ -32,29 +61,89 @@ def _wait_politely() -> None:
     _last_request_at = time.monotonic()
 
 
-def _get_with_one_retry(url: str) -> requests.Response:
-    """GET with a single retry on a timeout, connection error, or 5xx.
+def parse_retry_after(value: str | None, now: datetime | None = None) -> float | None:
+    """Seconds to wait from a Retry-After header: either "120" or an HTTP date.
+    None when the header is missing or unreadable (then normal backoff applies)."""
+    if not value:
+        return None
+    value = value.strip()
+    if value.isdigit():
+        return float(value)
+    try:
+        when = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    now = now or datetime.now(timezone.utc)
+    return max(0.0, (when - now).total_seconds())
 
-    A 4xx is final: a 404 will not appear on a second ask, and retrying a 403
+
+def backoff_seconds(attempt: int) -> float:
+    """Exponential backoff with jitter: ~1 s after attempt 1, ~2 s after attempt 2, ..."""
+    base = config.BACKOFF_BASE_SECONDS * 2 ** (attempt - 1)
+    return base + random.uniform(0, config.BACKOFF_JITTER_SECONDS)
+
+
+def _log_attempt(url: str, attempt: int, status: int | None, error: str | None,
+                 outcome: str, wait_s: float | None, elapsed_ms: int) -> None:
+    log.info("fetch attempt", extra={"fields": {
+        "url": url, "attempt": attempt, "status": status, "error": error,
+        "outcome": outcome, "wait_s": None if wait_s is None else round(wait_s, 2),
+        "elapsed_ms": elapsed_ms,
+    }})
+
+
+def _get_with_retries(url: str) -> requests.Response:
+    """GET with up to MAX_ATTEMPTS tries.
+
+    Retried: a timeout, a connection error, a 5xx, and a 429 (too many requests).
+    Final: every other 4xx. A 404 will not appear on a second ask, and retrying a 403
     is how a polite robot becomes a pest.
+
+    The wait before a retry is the server's Retry-After when it sends one, otherwise
+    exponential backoff with jitter. If Retry-After asks for longer than
+    MAX_RETRY_AFTER_SECONDS we give up rather than come back sooner than asked.
     """
-    for attempt in (1, 2):
+    for attempt in range(1, config.MAX_ATTEMPTS + 1):
         _wait_politely()
         stats["requests_sent"] += 1
+        started = time.monotonic()
+        status, error, retry_after = None, None, None
         try:
             response = _session.get(url, timeout=config.TIMEOUT_SECONDS)
         except (requests.Timeout, requests.ConnectionError) as exc:
-            if attempt == 2:
-                raise FetchError(f"{type(exc).__name__} for {url}") from exc
-            print(f"RETRY {url} after {type(exc).__name__}")
+            error = type(exc).__name__
         else:
-            if response.status_code == 200:
+            status = response.status_code
+            if status == 200:
+                _log_attempt(url, attempt, status, None, "ok", None, _ms_since(started))
                 return response
-            if response.status_code < 500 or attempt == 2:
-                raise FetchError(f"HTTP {response.status_code} for {url}")
-            print(f"RETRY {url} after HTTP {response.status_code}")
-        time.sleep(config.RETRY_WAIT_SECONDS)
+            if status != 429 and status < 500:
+                _log_attempt(url, attempt, status, None, "give_up", None, _ms_since(started))
+                raise FetchError(f"HTTP {status} for {url}")
+            retry_after = parse_retry_after(response.headers.get("Retry-After"))
+
+        problem = error or f"HTTP {status}"
+        elapsed = _ms_since(started)
+        if attempt == config.MAX_ATTEMPTS:
+            _log_attempt(url, attempt, status, error, "give_up", None, elapsed)
+            raise FetchError(f"{problem} for {url} after {attempt} attempts")
+        if retry_after is not None and retry_after > config.MAX_RETRY_AFTER_SECONDS:
+            _log_attempt(url, attempt, status, error, "give_up", retry_after, elapsed)
+            raise FetchError(f"{problem} for {url}: server asked to wait {retry_after:.0f} s, "
+                             f"more than the {config.MAX_RETRY_AFTER_SECONDS} s limit")
+
+        wait = retry_after if retry_after is not None else backoff_seconds(attempt)
+        _log_attempt(url, attempt, status, error, "retry", wait, elapsed)
+        source = "Retry-After" if retry_after is not None else "backoff"
+        print(f"RETRY {url} after {problem} (attempt {attempt}, waiting {wait:.1f} s, {source})")
+        time.sleep(wait)
     raise AssertionError("unreachable")
+
+
+def _ms_since(started: float) -> int:
+    return int((time.monotonic() - started) * 1000)
 
 
 def cache_path_for(url: str) -> Path:
@@ -81,7 +170,7 @@ def fetch_html(url: str, cache_path: Path) -> str:
         print(f"CACHE HIT {url} ({len(html):,} chars)")
         return html
 
-    response = _get_with_one_retry(url)
+    response = _get_with_retries(url)
 
     # The site serves UTF-8 but omits the charset header, so requests would guess Latin-1.
     response.encoding = "utf-8"

@@ -113,6 +113,7 @@ def main() -> None:
     report = RunReport(started_at=_utc_now())
     started = time.monotonic()
     results: dict = {"books": [], "errors": []}
+    log_handler = fetcher.configure_fetch_log(config.FETCH_LOG_FILE)
     try:
         run(report, args.inject_broken_url, results)
     except Exception as exc:
@@ -133,6 +134,8 @@ def main() -> None:
             write_dashboard(config.DASHBOARD_FILE, asdict(report), results["books"], results["errors"])
         except Exception as exc:  # a broken dashboard must not hide the run's real outcome
             print(f"WARN could not write dashboard: {exc!r}")
+        fetcher.log.removeHandler(log_handler)
+        log_handler.close()
 
 
 if __name__ == "__main__":

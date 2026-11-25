@@ -1,6 +1,9 @@
 # Cached HTML: never commit
 cache/
 
+# Per-run request log (regenerated every run)
+output/fetch-log.jsonl
+
 # Python
 __pycache__/
 *.pyc

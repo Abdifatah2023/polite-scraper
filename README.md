@@ -108,7 +108,7 @@ relative → absolute URLs, duplicate links, and a malformed page.
 
 | Stage | Module | What it does |
 |-------|--------|--------------|
-| Fetch | `src/fetcher.py` | Cache-first GET with the user-agent, timeout, delay, status check and a single retry |
+| Fetch | `src/fetcher.py` | Cache-first GET with the user-agent, timeout, delay, status check, and retries with backoff |
 | Discover | `src/discover.py` | Follows the catalogue's own "next" link for 3 pages; `urljoin` for every link; de-dupes |
 | Extract | `src/extract.py` | Reads the 8 raw fields from the product area (`.product_main`) of each book page |
 | Normalize | `src/normalize.py` | Adds clean values (`price_gbp`, `rating_stars`, `stock_count`) next to the raw text |
@@ -145,7 +145,9 @@ the text it came from.
 - **Delay:** at least 0.5 s between real requests (cached pages need no delay)
 - **Status check:** only `200` counts as a page; anything else is a failed fetch, not HTML to parse
 - **Cache:** every page is saved to `cache/` (gitignored) and reused, so the site feels each page once
-- **Retries:** one retry, 2 s later, on a timeout, connection error or 5xx; never on 404 or 403
+- **Retries:** up to 3 attempts on a timeout, connection error, 5xx or 429, waiting as the server
+  asks (`Retry-After`) or with exponential backoff; never on 404, 403 or any other 4xx (see
+  [Retry rules](#retry-rules))
 - **Scope:** 3 catalogue pages and their 60 books, nothing more
 
 ## Run report
@@ -184,6 +186,38 @@ A real `output/run-report.json` from the Stage 5 failure drill (warm cache, one 
 
 The only real request in that run was the made-up URL. It got a 404, was not retried, and the
 other 60 books still came out valid.
+
+## Retry rules
+
+Stage 5 started with a single retry. The fetcher now follows fuller rules, set in `src/config.py`:
+
+| Response | What the scraper does |
+|----------|-----------------------|
+| `200` | uses the page |
+| timeout, connection error, `5xx` | retries, up to 3 attempts in total |
+| `429 Too Many Requests` | retries, because the server is saying "slow down", not "no" |
+| `404`, `403`, any other `4xx` | gives up at once. A 404 won't appear on a second ask, and a 403 means no. |
+
+Before a retry the scraper waits:
+
+- **as long as the server asks**, when it sends a `Retry-After` header (in seconds or as a date).
+  If it asks for more than 30 s, the scraper gives up on that page instead of coming back
+  sooner than asked.
+- otherwise with **exponential backoff**: about 1 s, then 2 s, each plus up to 0.5 s of random
+  jitter, so retries from many clients don't all land at the same moment.
+
+Every real request attempt is written to `output/fetch-log.jsonl` as one JSON line with named
+fields, so it can be searched by people and by programs:
+
+```json
+{"ts": "2026-11-25T05:43:09.023Z", "url": "https://books.toscrape.com/catalogue/this-book-does-not-exist_0/index.html", "attempt": 1, "status": 404, "error": null, "outcome": "give_up", "wait_s": null, "elapsed_ms": 1041}
+```
+
+That line is from the failure drill. A run served fully from the cache sends no requests, so its
+log is empty. The log is rewritten every run and is not committed.
+
+The retry tests never touch the site. A fake session plays back responses such as
+`503 → 429 (Retry-After: 3) → 200`, and the waits are recorded instead of slept.
 
 ## Dashboard
 
