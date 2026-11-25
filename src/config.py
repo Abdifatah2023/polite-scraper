@@ -21,5 +21,6 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 CACHE_DIR = ROOT_DIR / "cache"
 OUTPUT_DIR = ROOT_DIR / "output"
 BOOKS_FILE = OUTPUT_DIR / "books.json"
+BOOKS_CSV_FILE = OUTPUT_DIR / "books.csv"
 ERRORS_FILE = OUTPUT_DIR / "errors.json"
 REPORT_FILE = OUTPUT_DIR / "run-report.json"

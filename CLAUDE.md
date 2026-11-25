@@ -35,6 +35,7 @@ Pipeline: `fetch → extract → normalize → validate → store → report`, d
 - `extract.extract_raw_record(...)` (Stage 3): returns exactly 8 keys of raw strings plus provenance. `description` is `None` when it's missing and must never be invented. Selectors target the product area, not the whole document.
 - `normalize.py` (Stage 4): adds clean fields such as `price_gbp` *next to* the raw `*_text` fields. It never replaces them.
 - `schema.Book` (Stage 4): a Pydantic model that every record is validated against before it is stored. `extra="forbid"`, https-only URLs, positive price, ratings 1–5, timezone-aware `fetched_at`. `product_url` is the record's identity. `normalize_record` never raises; unparseable values become `None` so the schema rejects them into `errors.json`.
+- `export.write_csv` (extra): writes `output/books.csv` from the validated records in `Book.model_fields` order, overwriting it each run. Unknown keys raise instead of being dropped silently.
 - `report.RunReport` (Stage 5): a dataclass of run counters that is serialized to `output/run-report.json`. `main.py` writes it in a `finally` block, so a report is produced even when the run aborts.
 - `main.run` catches `FetchError`/`ExtractError` per book page. `fetched_at` is the cache file's mtime (when the page really came from the site), not the current time. The `--inject-broken-url` drill adds `config.BROKEN_BOOK_URL`, which 404s.
 

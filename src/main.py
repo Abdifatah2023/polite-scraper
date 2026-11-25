@@ -16,6 +16,7 @@ from pydantic import ValidationError
 import config
 import fetcher
 from discover import discover_book_urls
+from export import write_csv
 from extract import ExtractError, extract_raw_record
 from fetcher import FetchError, cache_path_for, fetch_html
 from normalize import normalize_record
@@ -83,6 +84,7 @@ def run(report: RunReport, inject_broken_url: bool) -> None:
 
     # Overwrite (never append) so a rerun yields the same records, not double
     write_json(config.BOOKS_FILE, list(valid.values()))
+    write_csv(list(valid.values()), config.BOOKS_CSV_FILE)
     write_json(config.ERRORS_FILE, errors)
     report.valid_records = len(valid)
     report.invalid_records = len(errors)

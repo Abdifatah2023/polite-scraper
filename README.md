@@ -67,6 +67,7 @@ touching the site.
 Outputs:
 
 - `output/books.json`: validated records (exactly 60, also after a rerun)
+- `output/books.csv`: the same 60 validated records as a spreadsheet (see [CSV export](#csv-export))
 - `output/errors.json`: records that failed validation, with the reasons (empty on a clean run)
 - `output/run-report.json`: counts, cache hits, failures, and duration
 
@@ -75,6 +76,20 @@ run still finishes, `books.json` keeps its 60 records, and the report shows `fai
 
 To fetch everything fresh, delete the `cache/` folder. Do this rarely: the cache is what keeps
 the scraper polite.
+
+## CSV export
+
+Every run also writes `output/books.csv` from the validated records: one header row, then one
+row per book, with columns in schema order. Like `books.json`, it is overwritten, so a rerun
+gives an identical file. Turning JSON into a flat CSV changes a few things:
+
+- `null` becomes an empty cell, so a missing `description` or `stock_count` looks the same as an
+  empty string. (None of the current 60 books has either value missing.)
+- Every value becomes text: `price_gbp`, `rating_stars` and `stock_count` lose their number type.
+- `fetched_at` is written as its ISO timestamp string.
+- Titles and descriptions with commas or quotes are wrapped in quotes.
+
+The file is written as UTF-8 with a byte-order mark so Excel shows `£` correctly.
 
 ## Tests
 
